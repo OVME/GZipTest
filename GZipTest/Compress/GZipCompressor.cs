@@ -38,17 +38,16 @@ namespace GZipTest.Compress
                     {
                         using (var memoryStream = new MemoryStream())
                         {
-                            using (var gZipStream = new GZipStream(memoryStream, CompressionLevel.Optimal))
+                            using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress))
                             {
                                 gZipStream.Write(dataToCompress, 0, numberOfBytesReadFromInputFileStream);
-
-                                var compressedData = memoryStream.ToArray();
-                                var compressedDataLength = compressedData.Length;
-                                outputFileStream.Write(BitConverter.GetBytes(compressedDataLength), 0, sizeof(int));
-                                outputFileStream.Write(compressedData, 0, compressedDataLength);
-
-                                //TODO: may be clear dataToCompress? 
                             }
+                            
+                            //TODO: may be clear dataToCompress? 
+                            var compressedData = memoryStream.ToArray();
+                            var compressedDataLength = compressedData.Length;
+                            outputFileStream.Write(BitConverter.GetBytes(compressedDataLength), 0, sizeof(int));
+                            outputFileStream.Write(compressedData, 0, compressedDataLength);
                         }
                     }
                 }
