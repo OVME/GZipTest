@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using GZipTest.IO;
 
 namespace GZipTest.Decompress
 {
@@ -11,26 +12,15 @@ namespace GZipTest.Decompress
 
         public void Decompress(string inputArchiveName, string outputFileName)
         {
-            FileInfo inputArchiveInfo;
+            var fileInfoProvider = new FileInfoProvider();
 
-            try
-            {
-                inputArchiveInfo = new FileInfo(inputArchiveName);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                throw new GZipTestPublicException($"{inputArchiveName}: cannot get access to archive file.");
-            }
+            var inputArchiveInfo = fileInfoProvider.GetInputFileInfo(inputArchiveName);
 
-            if (!inputArchiveInfo.Exists)
-            {
-                throw new GZipTestPublicException($"{inputArchiveName}: archive file does not exist.");
-            }
+            var outputFileInfo = fileInfoProvider.GetOutputFileInfo(outputFileName);
 
-            // TODO: cases from compressor + incorrect block format
             using (var inputArchiveFileStream = inputArchiveInfo.OpenRead())
             {
-                using (var outputFileStream = new FileStream(outputFileName, FileMode.Create))
+                using (var outputFileStream = outputFileInfo.Create())
                 {
                     var followingCompressedDataBlockSizeBytes = new byte[sizeof(int)];
                     int numberOfBytesRead;

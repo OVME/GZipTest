@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using GZipTest.IO;
 
 namespace GZipTest.Compress
 {
@@ -10,26 +11,15 @@ namespace GZipTest.Compress
 
         public void Compress(string inputFileName, string outputArchiveName)
         {
-            FileInfo inputFileInfo;
+            var fileInfoProvider = new FileInfoProvider();
 
-            try
-            {
-                inputFileInfo = new FileInfo(inputFileName);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                throw new GZipTestPublicException($"{inputFileName}: cannot get access to file.");
-            }
+            var inputFileInfo = fileInfoProvider.GetInputFileInfo(inputFileName);
 
-            if (!inputFileInfo.Exists)
-            {
-                throw new GZipTestPublicException($"{inputFileName}: file does not exist.");
-            }
-
-            // TODO: handle write file unauthorized access exception and case when file with same name exist
+            var outputFileInfo = fileInfoProvider.GetOutputFileInfo(outputArchiveName);
+            
             using (var inputFileStream = inputFileInfo.OpenRead())
             {
-                using (var outputFileStream = new FileStream(outputArchiveName, FileMode.Create))
+                using (var outputFileStream = outputFileInfo.Create())
                 {
                     var dataToCompress = new byte[BlockSize];
                     int numberOfBytesReadFromInputFileStream;
