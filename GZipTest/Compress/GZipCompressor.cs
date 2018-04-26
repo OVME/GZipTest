@@ -17,6 +17,11 @@ namespace GZipTest.Compress
 
             var outputFileInfo = fileInfoProvider.GetOutputFileInfo(outputArchiveName);
             
+            CompressInternal(inputFileInfo, outputFileInfo);
+        }
+
+        private void CompressInternal(FileInfo inputFileInfo, FileInfo outputFileInfo)
+        {
             using (var inputFileStream = inputFileInfo.OpenRead())
             {
                 using (var outputFileStream = outputFileInfo.Create())
@@ -32,7 +37,7 @@ namespace GZipTest.Compress
                             {
                                 gZipStream.Write(dataToCompress, 0, numberOfBytesReadFromInputFileStream);
                             }
-                            
+
                             //TODO: may be clear dataToCompress? 
                             var compressedData = memoryStream.ToArray();
                             var compressedDataLength = compressedData.Length;

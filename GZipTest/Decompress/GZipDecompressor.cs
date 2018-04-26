@@ -18,6 +18,11 @@ namespace GZipTest.Decompress
 
             var outputFileInfo = fileInfoProvider.GetOutputFileInfo(outputFileName);
 
+            DecompressInternal(inputArchiveInfo, outputFileInfo);
+        }
+
+        private void DecompressInternal(FileInfo inputArchiveInfo, FileInfo outputFileInfo)
+        {
             using (var inputArchiveFileStream = inputArchiveInfo.OpenRead())
             {
                 using (var outputFileStream = outputFileInfo.Create())
