@@ -53,6 +53,7 @@
     <Compile Include="Decompress\GZipDecompressor.cs" />
     <Compile Include="Decompress\IDecompressor.cs" />
     <Compile Include="Decompress\MultiThreadDecompressionWorker.cs" />
+    <Compile Include="FormatConstants.cs" />
     <Compile Include="GZipTestPublicException.cs" />
     <Compile Include="IO\FileInfoProvider.cs" />
     <Compile Include="IO\IFileInfoProvider.cs" />
