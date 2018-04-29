@@ -1,14 +1,11 @@
 ﻿using System;
 using System.IO;
-using System.IO.Compression;
 using GZipTest.IO;
 
 namespace GZipTest.Compress
 {
     internal class GZipCompressor : ICompressor
     {
-        private const int BlockSize = 1048576;
-
         public void Compress(string inputFileName, string outputArchiveName)
         {
             var fileInfoProvider = new FileInfoProvider();
@@ -22,30 +19,28 @@ namespace GZipTest.Compress
 
         private void CompressInternal(FileInfo inputFileInfo, FileInfo outputFileInfo)
         {
-            using (var inputFileStream = inputFileInfo.OpenRead())
+            var compressionWorker = new MultiThreadCompressionWorker(Environment.ProcessorCount);
+
+            try
             {
-                using (var outputFileStream = outputFileInfo.Create())
+                using (var inputFileStream = inputFileInfo.OpenRead())
                 {
-                    var dataToCompress = new byte[BlockSize];
-                    int numberOfBytesReadFromInputFileStream;
-
-                    while ((numberOfBytesReadFromInputFileStream = inputFileStream.Read(dataToCompress, 0, BlockSize)) != 0)
+                    try
                     {
-                        using (var memoryStream = new MemoryStream())
+                        using (var outputFileStream = outputFileInfo.Create())
                         {
-                            using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress))
-                            {
-                                gZipStream.Write(dataToCompress, 0, numberOfBytesReadFromInputFileStream);
-                            }
-
-                            //TODO: may be clear dataToCompress? 
-                            var compressedData = memoryStream.ToArray();
-                            var compressedDataLength = compressedData.Length;
-                            outputFileStream.Write(BitConverter.GetBytes(compressedDataLength), 0, sizeof(int));
-                            outputFileStream.Write(compressedData, 0, compressedDataLength);
+                            compressionWorker.Compress(inputFileStream, outputFileStream);
                         }
                     }
+                    catch (UnauthorizedAccessException)
+                    {
+                        throw new GZipTestPublicException($"{inputFileInfo.FullName}: have no permissiom to create file");
+                    }
                 }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw new GZipTestPublicException($"{inputFileInfo.FullName}: can not get access to file");
             }
         }
     }
