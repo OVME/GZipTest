@@ -1,15 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
-using GZipTest.IO;
+using GZipTest.Common;
 
 namespace GZipTest.Decompress
 {
     public class GZipDecompressor : IDecompressor
     {
-        // TODO: mb replace to any static class
-        private const int BlockSize = 1048576;
-
         public void Decompress(string inputArchiveName, string outputFileName)
         {
             var fileInfoProvider = new FileInfoProvider();
@@ -29,7 +26,7 @@ namespace GZipTest.Decompress
                 {
                     var followingCompressedDataBlockSizeBytes = new byte[sizeof(int)];
                     int numberOfBytesRead;
-                    var decompressedData = new byte[BlockSize];
+                    var decompressedData = new byte[FormatConstants.BlockSize];
 
                     while ((numberOfBytesRead = inputArchiveFileStream.Read(followingCompressedDataBlockSizeBytes, 0, sizeof(int))) != 0)
                     {
@@ -49,7 +46,7 @@ namespace GZipTest.Decompress
                         {
                             using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
                             {
-                                var numberOfBytesDecompressed = gZipStream.Read(decompressedData, 0, BlockSize);
+                                var numberOfBytesDecompressed = gZipStream.Read(decompressedData, 0, FormatConstants.BlockSize);
                                 outputFileStream.Write(decompressedData, 0, numberOfBytesDecompressed);
                             }
                         }

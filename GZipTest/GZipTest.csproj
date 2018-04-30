@@ -47,16 +47,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\OperationResultType.cs" />
+    <Compile Include="Common\OperationResult.cs" />
     <Compile Include="Compress\GZipCompressor.cs" />
     <Compile Include="Compress\ICompressor.cs" />
     <Compile Include="Compress\MultiThreadCompressionWorker.cs" />
     <Compile Include="Decompress\GZipDecompressor.cs" />
     <Compile Include="Decompress\IDecompressor.cs" />
     <Compile Include="Decompress\MultiThreadDecompressionWorker.cs" />
-    <Compile Include="FormatConstants.cs" />
+    <Compile Include="Common\FormatConstants.cs" />
+    <Compile Include="GZipTestException.cs" />
     <Compile Include="GZipTestPublicException.cs" />
-    <Compile Include="IO\FileInfoProvider.cs" />
-    <Compile Include="IO\IFileInfoProvider.cs" />
+    <Compile Include="Common\FileInfoProvider.cs" />
+    <Compile Include="Common\IFileInfoProvider.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

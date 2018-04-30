@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace GZipTest.IO
+namespace GZipTest.Common
 {
     public class FileInfoProvider : IFileInfoProvider
     {

@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace GZipTest.IO
+namespace GZipTest.Common
 {
     public interface IFileInfoProvider
     {
