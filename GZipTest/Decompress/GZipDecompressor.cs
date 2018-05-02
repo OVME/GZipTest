@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using GZipTest.Common;
 
 namespace GZipTest.Decompress
@@ -20,38 +21,57 @@ namespace GZipTest.Decompress
 
         private void DecompressInternal(FileInfo inputArchiveInfo, FileInfo outputFileInfo)
         {
-            using (var inputArchiveFileStream = inputArchiveInfo.OpenRead())
+            var decompressionWorker = new MultiThreadDecompressionWorker(Environment.ProcessorCount);
+            OperationResult result;
+
+            try
             {
-                using (var outputFileStream = outputFileInfo.Create())
+                using (var inputArchiveFileStream = inputArchiveInfo.OpenRead())
                 {
-                    var followingCompressedDataBlockSizeBytes = new byte[sizeof(int)];
-                    int numberOfBytesRead;
-                    var decompressedData = new byte[FormatConstants.BlockSize];
-
-                    while ((numberOfBytesRead = inputArchiveFileStream.Read(followingCompressedDataBlockSizeBytes, 0, sizeof(int))) != 0)
+                    try
                     {
-                        if (numberOfBytesRead != sizeof(int))
+                        using (var outputFileStream = outputFileInfo.Create())
                         {
-                            throw new FormatException(
-                                $"Wrong archive format. Block with information about following compressed data block length should be {sizeof(int)} bytes size, but was {numberOfBytesRead} bytes.");
-                        }
-
-                        var compressedDataBlockSize = BitConverter.ToInt32(followingCompressedDataBlockSizeBytes, 0);
-
-                        var compressedData = new byte[compressedDataBlockSize];
-
-                        inputArchiveFileStream.Read(compressedData, 0, compressedDataBlockSize);
-
-                        using (var memoryStream = new MemoryStream(compressedData))
-                        {
-                            using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
-                            {
-                                var numberOfBytesDecompressed = gZipStream.Read(decompressedData, 0, FormatConstants.BlockSize);
-                                outputFileStream.Write(decompressedData, 0, numberOfBytesDecompressed);
-                            }
+                            result = decompressionWorker.Decompress(inputArchiveFileStream, outputFileStream);
                         }
                     }
+                    catch (UnauthorizedAccessException e)
+                    {
+                        throw new GZipTestPublicException($"{outputFileInfo.FullName}: have no permissiom to create file");
+                    }
                 }
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                throw new GZipTestPublicException($"{inputArchiveInfo.FullName}: can not get access to archive file");
+            }
+
+            HandleResult(result, outputFileInfo);
+        }
+
+        private void HandleResult(OperationResult result, FileInfo outputFileInfo)
+        {
+            switch (result.OperationResultType)
+            {
+                case OperationResultType.Success:
+                    break;
+                case OperationResultType.PrivateError:
+                    var privateErrorMessage = string.Join(";\n", result.PrivateErrors.Distinct());
+                    throw new GZipTestException(privateErrorMessage);
+                case OperationResultType.PublicError:
+                    var publicErrorMessage = string.Join(";\n", result.PublicErrors.Distinct());
+                    throw new GZipTestPublicException(publicErrorMessage);
+                case OperationResultType.BothErrors:
+                    var combinedErrorMessage = string.Join(";\n", result.PublicErrors.Distinct());
+                    throw new GZipTestPublicException(combinedErrorMessage);
+                default:
+                    throw new ArgumentOutOfRangeException($"Unknown value: {result.OperationResultType}");
+            }
+
+            if (result.OperationResultType.HasFlag(OperationResultType.PublicError) ||
+                result.OperationResultType.HasFlag(OperationResultType.PrivateError))
+            {
+                outputFileInfo.Delete();
             }
         }
     }

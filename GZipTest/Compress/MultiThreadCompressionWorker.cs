@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Threading;
 using GZipTest.Common;
 
@@ -78,8 +77,6 @@ namespace GZipTest.Compress
                 var outputFileStream = parameters.OutputArchiveFileStream;
 
                 var dataToCompress = new byte[FormatConstants.BlockSize];
-                int numberOfBytesReadFromInputFileStream;
-                int blockNumber;
 
                 while (true)
                 {
@@ -87,6 +84,9 @@ namespace GZipTest.Compress
                     {
                         return;
                     }
+
+                    int numberOfBytesReadFromInputFileStream;
+                    int blockNumber;
 
                     lock (_readLocker)
                     {
@@ -128,7 +128,7 @@ namespace GZipTest.Compress
             }
             catch (IOException)
             {
-                WritePublicError($"{outputArchiveFileStream.Name}: write error. Possible there is not enough disk space");
+                throw new GZipTestPublicException($"{outputArchiveFileStream.Name}: write error. Possible there is not enough disk space");
             }
         }
 

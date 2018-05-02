@@ -9,16 +9,17 @@ namespace GZipTest.Compress
     {
         public void Compress(string inputFileName, string outputArchiveName)
         {
+            // TODO: place to constructor
             var fileInfoProvider = new FileInfoProvider();
 
             var inputFileInfo = fileInfoProvider.GetInputFileInfo(inputFileName);
 
-            var outputFileInfo = fileInfoProvider.GetOutputFileInfo(outputArchiveName);
+            var outputArchiveFileInfo = fileInfoProvider.GetOutputFileInfo(outputArchiveName);
             
-            CompressInternal(inputFileInfo, outputFileInfo);
+            CompressInternal(inputFileInfo, outputArchiveFileInfo);
         }
 
-        private void CompressInternal(FileInfo inputFileInfo, FileInfo outputFileInfo)
+        private void CompressInternal(FileInfo inputFileInfo, FileInfo outputArchiveFileInfo)
         {
             var compressionWorker = new MultiThreadCompressionWorker(Environment.ProcessorCount);
             OperationResult result;
@@ -29,14 +30,14 @@ namespace GZipTest.Compress
                 {
                     try
                     {
-                        using (var outputFileStream = outputFileInfo.Create())
+                        using (var outputFileStream = outputArchiveFileInfo.Create())
                         {
                             result = compressionWorker.Compress(inputFileStream, outputFileStream);
                         }
                     }
                     catch (UnauthorizedAccessException)
                     {
-                        throw new GZipTestPublicException($"{inputFileInfo.FullName}: have no permissiom to create file");
+                        throw new GZipTestPublicException($"{outputArchiveFileInfo.FullName}: have no permissiom to create file");
                     }
                 }
             }
@@ -45,9 +46,14 @@ namespace GZipTest.Compress
                 throw new GZipTestPublicException($"{inputFileInfo.FullName}: can not get access to file");
             }
 
-            HandleResult(result, outputFileInfo);
+            HandleResult(result, outputArchiveFileInfo);
         }
 
+        // GZipDecompressor contains this method as well. 
+        // It is not placed to base class because Compressor and Decompressor have different purpose, so they can't have base class.
+        // These methods are equal just because it is test project and for simplicity I created one OperationResult class.
+        // In serious project Compressor and Decompressor should get different results, one class for each operation,
+        // containing more detailed specific data for compression and decompression.
         private void HandleResult(OperationResult result, FileInfo outputFileInfo)
         {
             switch (result.OperationResultType)
