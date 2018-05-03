@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using GZipTest.Common;
+using GZipTest.Common.MultiThreading;
 
 namespace GZipTest.Decompress
 {
@@ -32,7 +33,7 @@ namespace GZipTest.Decompress
                     {
                         using (var outputFileStream = outputFileInfo.Create())
                         {
-                            result = decompressionWorker.Decompress(inputArchiveFileStream, outputFileStream);
+                            result = decompressionWorker.Work(new MultiThreadWorkerParameters(inputArchiveFileStream, outputFileStream));
                         }
                     }
                     catch (UnauthorizedAccessException e)

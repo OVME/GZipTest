@@ -1,86 +1,56 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Threading;
 using GZipTest.Common;
+using GZipTest.Common.MultiThreading;
 
 namespace GZipTest.Compress
 {
-    public class MultiThreadCompressionWorker
+    public class MultiThreadCompressionWorker : MultiThreadWorker
     {
-        private bool _workerIsUsed = false;
-        private bool _hasPrivateError = false;
-        private bool _hasPublicError = false;
-        private readonly List<string> _privateErrors = new List<string>();
-        private readonly List<string> _publicErrors = new List<string>();
-
-        private readonly int _processorsCount;
-
         private readonly object _readLocker = new object();
 
         private readonly object _writeLocker = new object();
 
-        private readonly object _privateErrorWritingLocker = new object();
-
-        private readonly object _publicErrorWritingLocker = new object();
-
         private int _blockNumber = 0;
-        
-        public MultiThreadCompressionWorker(int processorsCount)
+
+        public MultiThreadCompressionWorker(int processorsCount) : base(processorsCount)
         {
-            _processorsCount = processorsCount;
         }
 
-        public OperationResult Compress(FileStream inputFileStream, FileStream outputArchiveFileStream)
+        protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
-            if (_workerIsUsed)
-            {
-                throw new InvalidOperationException("Worker can not be run twice.");
-            }
+            var inputFileStream = parameters.InputFileStream;
+            var outputArchiveFileStream = parameters.OutputFileStream;
 
             WriteOriginalFileSize(inputFileStream, outputArchiveFileStream);
 
-            var threads = new Thread[_processorsCount];
-
-            for (var i = 0; i < _processorsCount; i++)
-            {
-                var thread = new Thread(RunCompression);
-                threads[i] = thread;
-            }
+            var threads = GetThreads(RunCompression);
 
             foreach (var thread in threads)
             {
-                thread.Start(new RunCompressionParameters
-                {
-                    InputFileStream = inputFileStream,
-                    OutputArchiveFileStream = outputArchiveFileStream
-                });
+                thread.Start(parameters);
             }
 
             foreach (var thread in threads)
             {
                 thread.Join();
             }
-
-            _workerIsUsed = true;
-
-            return GetWorkResult();
         }
 
         private void RunCompression(object obj)
         {
             try
             {
-                var parameters = (RunCompressionParameters)obj;
+                var parameters = (MultiThreadWorkerParameters)obj;
                 var inputArchiveFileStream = parameters.InputFileStream;
-                var outputFileStream = parameters.OutputArchiveFileStream;
+                var outputFileStream = parameters.OutputFileStream;
 
                 var dataToCompress = new byte[FormatConstants.BlockSize];
 
                 while (true)
                 {
-                    if (_hasPrivateError || _hasPublicError)
+                    if (HasPrivateError || HasPublicError)
                     {
                         return;
                     }
@@ -164,53 +134,6 @@ namespace GZipTest.Compress
                     WritePublicError($"{outputFileStream.Name}: write error. Possible there is not enough disk space");
                 }
             }
-        }
-
-        private void WritePublicError(string errorText)
-        {
-            lock (_publicErrorWritingLocker)
-            {
-                _hasPublicError = true;
-                _publicErrors.Add(errorText);
-            }
-        }
-
-        private void WritePrivateError(string errorText)
-        {
-            lock (_privateErrorWritingLocker)
-            {
-                _hasPrivateError = true;
-                _privateErrors.Add(errorText);
-            }
-        }
-
-        private OperationResult GetWorkResult()
-        {
-            if (!_hasPrivateError && !_hasPublicError)
-            {
-                return new OperationResult(OperationResultType.Success);
-            }
-
-            OperationResultType resultType = 0;
-
-            if (_hasPrivateError)
-            {
-                resultType |= OperationResultType.PrivateError;
-            }
-
-            if (_hasPublicError)
-            {
-                resultType |= OperationResultType.PublicError;
-            }
-
-            return new OperationResult(resultType, _privateErrors, _publicErrors);
-        }
-
-        private class RunCompressionParameters
-        {
-            public FileStream InputFileStream { get; set; }
-
-            public FileStream OutputArchiveFileStream { get; set; }
         }
     }
 }

@@ -47,6 +47,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\MultiThreading\MultiThreadWorker.cs" />
+    <Compile Include="Common\MultiThreading\MultiThreadWorkerParameters.cs" />
     <Compile Include="Common\OperationResultType.cs" />
     <Compile Include="Common\OperationResult.cs" />
     <Compile Include="Compress\GZipCompressor.cs" />
