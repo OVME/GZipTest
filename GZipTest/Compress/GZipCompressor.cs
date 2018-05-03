@@ -56,6 +56,12 @@ namespace GZipTest.Compress
         // containing more detailed specific data for compression and decompression.
         private void HandleResult(OperationResult result, FileInfo outputFileInfo)
         {
+            if (result.OperationResultType.HasFlag(OperationResultType.PublicError) ||
+                result.OperationResultType.HasFlag(OperationResultType.PrivateError))
+            {
+                outputFileInfo.Delete();
+            }
+
             switch (result.OperationResultType)
             {
                 case OperationResultType.Success:
@@ -76,12 +82,6 @@ namespace GZipTest.Compress
                     throw new GZipTestPublicException(combinedErrorMessage);
                 default:
                     throw new ArgumentOutOfRangeException($"Unknown value: {result.OperationResultType}");
-            }
-
-            if (result.OperationResultType.HasFlag(OperationResultType.PublicError) ||
-                result.OperationResultType.HasFlag(OperationResultType.PrivateError))
-            {
-                outputFileInfo.Delete();
             }
         }
     }
