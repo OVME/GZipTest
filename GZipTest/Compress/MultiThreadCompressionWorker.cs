@@ -12,7 +12,7 @@ namespace GZipTest.Compress
 
         private readonly object _writeLocker = new object();
 
-        private int _blockNumber = 0;
+        private volatile int _blockNumber = 0;
 
         public MultiThreadCompressionWorker(int processorsCount) : base(processorsCount)
         {
@@ -46,8 +46,6 @@ namespace GZipTest.Compress
                 var inputArchiveFileStream = parameters.InputFileStream;
                 var outputFileStream = parameters.OutputFileStream;
 
-                var dataToCompress = new byte[FormatConstants.BlockSize];
-
                 while (true)
                 {
                     if (HasPrivateError || HasPublicError)
@@ -55,30 +53,48 @@ namespace GZipTest.Compress
                         return;
                     }
 
-                    int numberOfBytesReadFromInputFileStream;
-                    int blockNumber;
+                    var block = GetNextBlock(inputArchiveFileStream);
 
-                    lock (_readLocker)
+                    if (block == null)
                     {
-                        numberOfBytesReadFromInputFileStream = inputArchiveFileStream.Read(dataToCompress, 0, FormatConstants.BlockSize);
-
-                        if (numberOfBytesReadFromInputFileStream == 0)
-                        {
-                            break;
-                        }
-
-                        blockNumber = GetNextBlockNumber();
+                        break;
                     }
 
-                    var compressedData = CompressDataBlock(dataToCompress, numberOfBytesReadFromInputFileStream);
+                    var compressedData = CompressDataBlock(block.Data, block.DataLength);
 
-                    WriteCompressedBlock(outputFileStream, blockNumber, compressedData);
+                    WriteCompressedBlock(outputFileStream, block.BlockNumber, compressedData);
                 }
             }
             catch (Exception ex)
             {
                 WritePrivateError(ex.Message + "\n" + ex.StackTrace);
             }
+        }
+
+        private BlockInfo GetNextBlock(FileStream inputFileStream)
+        {
+            var blockData = new byte[FormatConstants.BlockSize];
+            int numberOfBytesReadFromInputFileStream;
+            int blockNumber;
+
+            lock (_readLocker)
+            {
+                numberOfBytesReadFromInputFileStream = inputFileStream.Read(blockData, 0, FormatConstants.BlockSize);
+
+                if (numberOfBytesReadFromInputFileStream == 0)
+                {
+                    return null;
+                }
+
+                blockNumber = GetNextBlockNumber();
+            }
+
+            return new BlockInfo
+            {
+                BlockNumber = blockNumber,
+                Data = blockData,
+                DataLength = numberOfBytesReadFromInputFileStream
+            };
         }
 
         private int GetNextBlockNumber()
@@ -134,6 +150,15 @@ namespace GZipTest.Compress
                     WritePublicError($"{outputFileStream.Name}: write error. Possible there is not enough disk space");
                 }
             }
+        }
+
+        private class BlockInfo
+        {
+            public byte[] Data { get; set; }
+
+            public int DataLength { get; set; }
+
+            public int BlockNumber { get; set; }
         }
     }
 }

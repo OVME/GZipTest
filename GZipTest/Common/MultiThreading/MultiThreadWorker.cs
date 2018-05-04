@@ -9,10 +9,14 @@ namespace GZipTest.Common.MultiThreading
         private bool _workerIsUsed = false;
         private volatile bool _hasPrivateError = false;
         private volatile bool _hasPublicError = false;
+
+        // Exceptions could be collected instead of error messages. It makes sense if logger would be implemented.
+        // In this case GZipTestException would have collection of Exceptions and GZipTestApplication.Run would catch
+        // GZipTestException separately and log each Exception from it's collection.
         private readonly List<string> _privateErrors = new List<string>();
         private readonly List<string> _publicErrors = new List<string>();
 
-        // I could use _privateErrors.Any() for those properties and not use _hasPrivateError field at all.
+        // I could use _privateErrors.Any() for those properties and not create _hasPrivateError field at all.
         // I'm not sure which option is better. It's not really important how fast thread will get an actual error appearance information in this case.
         public bool HasPrivateError => _hasPrivateError;
         public bool HasPublicError => _hasPublicError;
