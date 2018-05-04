@@ -47,15 +47,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\Command.cs" />
+    <Compile Include="Common\CommandProcessor.cs" />
+    <Compile Include="Common\ICommandProcessor.cs" />
+    <Compile Include="Common\MultiThreading\IMultiThreadWorkerFactory.cs" />
     <Compile Include="Common\MultiThreading\MultiThreadWorker.cs" />
+    <Compile Include="Common\MultiThreading\MultiThreadWorkerFactory.cs" />
     <Compile Include="Common\MultiThreading\MultiThreadWorkerParameters.cs" />
     <Compile Include="Common\OperationResultType.cs" />
     <Compile Include="Common\OperationResult.cs" />
-    <Compile Include="Compress\GZipCompressor.cs" />
-    <Compile Include="Compress\ICompressor.cs" />
+    <Compile Include="Common\OperationType.cs" />
     <Compile Include="Compress\MultiThreadCompressionWorker.cs" />
-    <Compile Include="Decompress\GZipDecompressor.cs" />
-    <Compile Include="Decompress\IDecompressor.cs" />
     <Compile Include="Decompress\MultiThreadDecompressionWorker.cs" />
     <Compile Include="Common\FormatConstants.cs" />
     <Compile Include="GZipTestException.cs" />

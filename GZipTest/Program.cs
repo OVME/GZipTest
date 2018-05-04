@@ -1,4 +1,6 @@
 ﻿using System;
+using GZipTest.Common;
+using GZipTest.Common.MultiThreading;
 using GZipTest.Compress;
 using GZipTest.Decompress;
 
@@ -32,22 +34,25 @@ namespace GZipTest
             }
         }
 
-        private static void ExecuteCommand(string command, string inputFile, string outputFile)
+        private static void ExecuteCommand(string commandString, string inputFile, string outputFile)
         {
-            // TODO: if stateless compressor and decompressor are possible, mb use composition
-            switch (command)
+            IFileInfoProvider fileInfoProvider = new FileInfoProvider();
+            IMultiThreadWorkerFactory workerFactory = new MultiThreadWorkerFactory();
+            ICommandProcessor commandProcessor = new CommandProcessor(fileInfoProvider, workerFactory);
+            var command = new Command { InputFileName = inputFile, OutputFileName = outputFile };
+            switch (commandString)
             {
                 case CompressCommand:
-                    var compressor = new GZipCompressor();
-                    compressor.Compress(inputFile, outputFile);
+                    command.OperationType = OperationType.Compress;
                     break;
                 case DecompressCommand:
-                    var decompressor = new GZipDecompressor();
-                    decompressor.Decompress(inputFile, outputFile);
+                    command.OperationType = OperationType.Decompress;
                     break;
                 default:
                     throw new ArgumentException($"Unexpected {nameof(command)} parameter value");
             }
+
+            commandProcessor.Process(command);
         }
 
         private static void WriteUnexpectedErrorMessageToConsole()
