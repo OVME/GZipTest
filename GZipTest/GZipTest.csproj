@@ -36,6 +36,10 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Autofac, Version=4.8.0.0, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
+      <HintPath>..\packages\Autofac.4.8.0\lib\net45\Autofac.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
@@ -57,18 +61,22 @@
     <Compile Include="Common\OperationResultType.cs" />
     <Compile Include="Common\OperationResult.cs" />
     <Compile Include="Common\OperationType.cs" />
+    <Compile Include="Composition\ContainerConfig.cs" />
     <Compile Include="Compress\MultiThreadCompressionWorker.cs" />
     <Compile Include="Decompress\MultiThreadDecompressionWorker.cs" />
     <Compile Include="Common\FormatConstants.cs" />
+    <Compile Include="GZipTestApplication.cs" />
     <Compile Include="GZipTestException.cs" />
     <Compile Include="GZipTestPublicException.cs" />
     <Compile Include="Common\FileInfoProvider.cs" />
     <Compile Include="Common\IFileInfoProvider.cs" />
+    <Compile Include="IGZipTestApplication.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

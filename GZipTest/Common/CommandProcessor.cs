@@ -76,6 +76,11 @@ namespace GZipTest.Common
                 case OperationResultType.PublicError:
                     var publicErrorMessage = string.Join(";\n", result.PublicErrors.Distinct());
                     throw new GZipTestPublicException(publicErrorMessage);
+                // There are several possible solutions for case when we are getting public and private errors both.
+                // I will show public error, so user, may be will be able to fix problem that he can.
+                // May be it have sense to create new GZipTestCombinedException type with separated properties 
+                // containing private errros and public errors, so private can be logged and public can be shown.
+                // Or private exception can be thrown so errors will be only logged.
                 case OperationResultType.BothErrors:
                     var combinedErrorMessage = string.Join(";\n", result.PublicErrors.Distinct());
                     throw new GZipTestPublicException(combinedErrorMessage);
