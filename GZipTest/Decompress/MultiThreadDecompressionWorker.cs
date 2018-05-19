@@ -19,7 +19,7 @@ namespace GZipTest.Decompress
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
-            var inputArchiveFileStream = parameters.InputFileStream;
+            /*var inputArchiveFileStream = parameters.InputFileStream;
             var outputFileStream = parameters.OutputFileStream;
 
             SetOutputFileSize(inputArchiveFileStream, outputFileStream);
@@ -34,12 +34,12 @@ namespace GZipTest.Decompress
             foreach (var thread in threads)
             {
                 thread.Join();
-            }
+            }*/
         }
 
         private void RunDecompression(object obj)
         {
-            try
+            /*try
             {
                 var parameters = (MultiThreadWorkerParameters) obj;
                 var inputArchiveFileStream = parameters.InputFileStream;
@@ -77,7 +77,7 @@ namespace GZipTest.Decompress
             catch (Exception ex)
             {
                 WritePrivateError(ex.Message + "\n" + ex.StackTrace);
-            }
+            }*/
         }
 
         private void WriteDecompressedBlockToStream(long blockPosition, DecompressedArchiveBlockData decompressedBlockData,

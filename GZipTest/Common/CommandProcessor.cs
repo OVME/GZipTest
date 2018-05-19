@@ -31,29 +31,8 @@ namespace GZipTest.Common
         private void ProcessInternal(OperationType operationType, FileInfo inputFileInfo, FileInfo outputFileInfo)
         {
             var worker = _workerFactory.GetWorker(operationType);
-            OperationResult result;
-
-            try
-            {
-                using (var inputFileStream = inputFileInfo.OpenRead())
-                {
-                    try
-                    {
-                        using (var outputFileStream = outputFileInfo.Create())
-                        {
-                            result = worker.Work(new MultiThreadWorkerParameters(inputFileStream, outputFileStream));
-                        }
-                    }
-                    catch (UnauthorizedAccessException)
-                    {
-                        throw new GZipTestPublicException($"{outputFileInfo.FullName}: have no permissiom to create file");
-                    }
-                }
-            }
-            catch (UnauthorizedAccessException)
-            {
-                throw new GZipTestPublicException($"{inputFileInfo.FullName}: can not get access to file");
-            }
+            
+            var result = worker.Work(new MultiThreadWorkerParameters(inputFileInfo, outputFileInfo));
 
             HandleResult(result, outputFileInfo);
         }

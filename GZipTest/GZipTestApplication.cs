@@ -31,7 +31,7 @@ namespace GZipTest
             {
                 WritePublicExceptionToConsole(e);
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 // Logger code should be here
                 WriteUnexpectedErrorMessageToConsole();

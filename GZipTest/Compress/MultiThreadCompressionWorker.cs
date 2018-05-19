@@ -14,27 +14,51 @@ namespace GZipTest.Compress
 
         private volatile int _blockNumber = 0;
 
+        private int _blocksAmount;
+
         public MultiThreadCompressionWorker(int processorsCount) : base(processorsCount)
         {
         }
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
-            var inputFileStream = parameters.InputFileStream;
-            var outputArchiveFileStream = parameters.OutputFileStream;
-
-            WriteOriginalFileSize(inputFileStream, outputArchiveFileStream);
-
+            SetBlocksAmount(parameters.InputFileInfo);
             var threads = GetThreads(RunCompression);
 
-            foreach (var thread in threads)
+            try
             {
-                thread.Start(parameters);
-            }
+                using (var outputArchiveFileStream = parameters.OutputFileInfo.OpenWrite())
+                {
+                    WriteOriginalFileSize(parameters.InputFileInfo, outputArchiveFileStream);
 
-            foreach (var thread in threads)
+                    foreach (var thread in threads)
+                    {
+                        thread.Start(new RunCompressionParameters
+                        {
+                            InputFileInfo = parameters.InputFileInfo,
+                            OutputFileStream = outputArchiveFileStream
+                        });
+                    }
+
+                    foreach (var thread in threads)
+                    {
+                        thread.Join();
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
             {
-                thread.Join();
+                throw new GZipTestPublicException($"{parameters.OutputFileInfo.FullName}: can not get access to file");
+            }
+            
+        }
+
+        private void SetBlocksAmount(FileInfo inputFileInfo)
+        {
+            _blocksAmount = (int)(inputFileInfo.Length / FormatConstants.BlockSize);
+            if (inputFileInfo.Length % FormatConstants.BlockSize > 0)
+            {
+                _blocksAmount++;
             }
         }
 
@@ -42,27 +66,36 @@ namespace GZipTest.Compress
         {
             try
             {
-                var parameters = (MultiThreadWorkerParameters)obj;
-                var inputArchiveFileStream = parameters.InputFileStream;
+                var parameters = (RunCompressionParameters)obj;
+                var inputFileInfo = parameters.InputFileInfo;
                 var outputFileStream = parameters.OutputFileStream;
-
-                while (true)
+                try
                 {
-                    if (HasPrivateError || HasPublicError)
+                    using (var inputFileStream = inputFileInfo.OpenRead())
                     {
-                        return;
+                        while (true)
+                        {
+                            if (HasPrivateError || HasPublicError)
+                            {
+                                return;
+                            }
+
+                            var block = GetNextBlock(inputFileStream);
+
+                            if (block == null)
+                            {
+                                break;
+                            }
+
+                            var compressedData = CompressDataBlock(block.Data, block.DataLength);
+
+                            WriteCompressedBlock(outputFileStream, block.BlockNumber, compressedData);
+                        }
                     }
-
-                    var block = GetNextBlock(inputArchiveFileStream);
-
-                    if (block == null)
-                    {
-                        break;
-                    }
-
-                    var compressedData = CompressDataBlock(block.Data, block.DataLength);
-
-                    WriteCompressedBlock(outputFileStream, block.BlockNumber, compressedData);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    WritePublicError($"{inputFileInfo.FullName}: can not get access to file");
                 }
             }
             catch (Exception ex)
@@ -74,19 +107,25 @@ namespace GZipTest.Compress
         private BlockInfo GetNextBlock(FileStream inputFileStream)
         {
             var blockData = new byte[FormatConstants.BlockSize];
-            int numberOfBytesReadFromInputFileStream;
             int blockNumber;
 
             lock (_readLocker)
             {
-                numberOfBytesReadFromInputFileStream = inputFileStream.Read(blockData, 0, FormatConstants.BlockSize);
-
-                if (numberOfBytesReadFromInputFileStream == 0)
-                {
-                    return null;
-                }
-
                 blockNumber = GetNextBlockNumber();
+            }
+
+            if (blockNumber >= _blocksAmount)
+            {
+                return null;
+            }
+
+            SetInputFileStreamPosition(inputFileStream, blockNumber);
+
+            var numberOfBytesReadFromInputFileStream = inputFileStream.Read(blockData, 0, FormatConstants.BlockSize);
+
+            if (numberOfBytesReadFromInputFileStream == 0)
+            {
+                return null;
             }
 
             return new BlockInfo
@@ -97,14 +136,21 @@ namespace GZipTest.Compress
             };
         }
 
+        private void SetInputFileStreamPosition(FileStream inputFileStream, int blockNumber)
+        {
+            var position = blockNumber*FormatConstants.BlockSize;
+
+            inputFileStream.Position = position;
+        }
+
         private int GetNextBlockNumber()
         {
             return _blockNumber++;
         }
 
-        private void WriteOriginalFileSize(FileStream inputFileStream, FileStream outputArchiveFileStream)
+        private void WriteOriginalFileSize(FileInfo inputFileInfo, FileStream outputArchiveFileStream)
         {
-            var originalFileSize = inputFileStream.Length;
+            var originalFileSize = inputFileInfo.Length;
 
             var originalFileSizeBytes = BitConverter.GetBytes(originalFileSize);
 
@@ -159,6 +205,13 @@ namespace GZipTest.Compress
             public int DataLength { get; set; }
 
             public int BlockNumber { get; set; }
+        }
+
+        private class RunCompressionParameters
+        {
+            public FileInfo InputFileInfo { get; set; }
+            
+            public FileStream OutputFileStream { get; set; } 
         }
     }
 }

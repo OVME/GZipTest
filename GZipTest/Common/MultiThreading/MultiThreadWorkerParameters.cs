@@ -4,14 +4,14 @@ namespace GZipTest.Common.MultiThreading
 {
     public class MultiThreadWorkerParameters
     {
-        public MultiThreadWorkerParameters(FileStream inputFileStream, FileStream outputFileStream)
+        public MultiThreadWorkerParameters(FileInfo inputFileInfo, FileInfo outputFileInfo)
         {
-            InputFileStream = inputFileStream;
-            OutputFileStream = outputFileStream;
+            InputFileInfo = inputFileInfo;
+            OutputFileInfo = outputFileInfo;
         }
 
-        public FileStream InputFileStream { get; }
+        public FileInfo InputFileInfo { get; }
 
-        public FileStream OutputFileStream { get; }
+        public FileInfo OutputFileInfo { get; }
     }
 }
