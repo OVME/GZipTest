@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using GZipTest.Common;
@@ -12,17 +13,27 @@ namespace GZipTest.Compress
 
         private readonly object _writeLocker = new object();
 
+        private readonly object _writeToBufferLocker = new object();
+
+        private readonly int _blocksLimitInBuffer;
+
         private volatile int _blockNumber = 0;
 
         private int _blocksAmount;
 
+        private int _writtenBlocksAmount = 0;
+
+        private List<CompressedBlock> _buffer;
+
         public MultiThreadCompressionWorker(int processorsCount) : base(processorsCount)
         {
+            _blocksLimitInBuffer = processorsCount;
         }
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
             SetBlocksAmount(parameters.InputFileInfo);
+            InitializeBuffer();
             var threads = GetThreads(RunCompression);
 
             try
@@ -50,7 +61,11 @@ namespace GZipTest.Compress
             {
                 throw new GZipTestPublicException($"{parameters.OutputFileInfo.FullName}: can not get access to file");
             }
-            
+        }
+
+        private void InitializeBuffer()
+        {
+            _buffer = new List<CompressedBlock>();
         }
 
         private void SetBlocksAmount(FileInfo inputFileInfo)
@@ -182,14 +197,61 @@ namespace GZipTest.Compress
 
         private void WriteCompressedBlock(FileStream outputFileStream, int blockNumber, byte[] compressedData)
         {
+            var compressedBlock = new CompressedBlock
+            {
+                BlockNumber = blockNumber,
+                CompressedData = compressedData
+            };
+
+            if (!CurrentBlockIsLast())
+            {
+                List<CompressedBlock> buffer = null;
+                lock (_writeToBufferLocker)
+                {
+                    if (!BufferIsFilled())
+                    {
+                        _buffer.Add(compressedBlock);
+                    }
+                    else
+                    {
+                        buffer = _buffer;
+                        InitializeBuffer();
+                    }
+
+                    _writtenBlocksAmount++;
+                }
+
+                if (buffer != null)
+                {
+                    buffer.Add(compressedBlock);
+                    WriteBufferToOutputFileStream(buffer, outputFileStream);
+                }
+            }
+            else
+            {
+                _buffer.Add(compressedBlock);
+                WriteBufferToOutputFileStream(_buffer, outputFileStream);
+            }
+        }
+
+        private bool CurrentBlockIsLast()
+        {
+            return _writtenBlocksAmount + 1 == _blocksAmount;
+        }
+
+        private void WriteBufferToOutputFileStream(List<CompressedBlock> buffer, FileStream outputFileStream)
+        {
             lock (_writeLocker)
             {
                 try
                 {
-                    var compressedDataLength = compressedData.Length;
-                    outputFileStream.Write(BitConverter.GetBytes(blockNumber), 0, sizeof(int));
-                    outputFileStream.Write(BitConverter.GetBytes(compressedDataLength), 0, sizeof(int));
-                    outputFileStream.Write(compressedData, 0, compressedDataLength);
+                    foreach (var compressedBlock in buffer)
+                    {
+                        var compressedDataLength = compressedBlock.CompressedData.Length;
+                        outputFileStream.Write(BitConverter.GetBytes(compressedBlock.BlockNumber), 0, sizeof(int));
+                        outputFileStream.Write(BitConverter.GetBytes(compressedDataLength), 0, sizeof(int));
+                        outputFileStream.Write(compressedBlock.CompressedData, 0, compressedDataLength);
+                    }
                 }
                 catch (IOException)
                 {
@@ -198,11 +260,23 @@ namespace GZipTest.Compress
             }
         }
 
+        private bool BufferIsFilled()
+        {
+            return _buffer.Count == _blocksLimitInBuffer;
+        }
+
         private class BlockInfo
         {
             public byte[] Data { get; set; }
 
             public int DataLength { get; set; }
+
+            public int BlockNumber { get; set; }
+        }
+
+        private class CompressedBlock
+        {
+            public byte[] CompressedData { get; set; }
 
             public int BlockNumber { get; set; }
         }
