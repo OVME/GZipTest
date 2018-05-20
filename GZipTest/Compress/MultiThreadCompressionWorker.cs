@@ -65,7 +65,7 @@ namespace GZipTest.Compress
 
         private void InitializeBuffer()
         {
-            _buffer = new List<CompressedBlock>();
+            _buffer = new List<CompressedBlock>(_blocksLimitInBuffer);
         }
 
         private void SetBlocksAmount(FileInfo inputFileInfo)
@@ -203,40 +203,33 @@ namespace GZipTest.Compress
                 CompressedData = compressedData
             };
 
-            if (!CurrentBlockIsLast())
-            {
-                List<CompressedBlock> buffer = null;
-                lock (_writeToBufferLocker)
-                {
-                    if (!BufferIsFilled())
-                    {
-                        _buffer.Add(compressedBlock);
-                    }
-                    else
-                    {
-                        buffer = _buffer;
-                        InitializeBuffer();
-                    }
+            List<CompressedBlock> buffer = null;
 
-                    _writtenBlocksAmount++;
-                }
-
-                if (buffer != null)
-                {
-                    buffer.Add(compressedBlock);
-                    WriteBufferToOutputFileStream(buffer, outputFileStream);
-                }
-            }
-            else
+            lock (_writeToBufferLocker)
             {
                 _buffer.Add(compressedBlock);
+                _writtenBlocksAmount++;
+                if (BufferIsFilled())
+                {
+                    buffer = _buffer;
+                    InitializeBuffer();
+                }
+            }
+
+            if (buffer != null)
+            {
+                WriteBufferToOutputFileStream(buffer, outputFileStream);
+            }
+
+            if (buffer == null && CurrentBlockIsLast())
+            {
                 WriteBufferToOutputFileStream(_buffer, outputFileStream);
             }
         }
 
         private bool CurrentBlockIsLast()
         {
-            return _writtenBlocksAmount + 1 == _blocksAmount;
+            return _writtenBlocksAmount == _blocksAmount;
         }
 
         private void WriteBufferToOutputFileStream(List<CompressedBlock> buffer, FileStream outputFileStream)

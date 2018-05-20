@@ -2,6 +2,6 @@
 {
     public static class FormatConstants
     {
-        public const int BlockSize = 1048576;
+        public const int BlockSize = 1048576 * 5;
     }
 }
