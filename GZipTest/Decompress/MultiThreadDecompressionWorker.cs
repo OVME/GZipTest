@@ -19,29 +19,50 @@ namespace GZipTest.Decompress
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
-            /*var inputArchiveFileStream = parameters.InputFileStream;
-            var outputFileStream = parameters.OutputFileStream;
-
-            SetOutputFileSize(inputArchiveFileStream, outputFileStream);
-
-            var threads = GetThreads(RunDecompression);
-
-            foreach (var thread in threads)
+            try
             {
-                thread.Start(parameters);
+                using (var inputArchiveFileStream = parameters.InputFileInfo.OpenRead())
+                {
+                    try
+                    {
+                        using (var outputFileStream = parameters.OutputFileInfo.OpenWrite())
+                        {
+                            SetOutputFileSize(inputArchiveFileStream, outputFileStream);
+
+                            var threads = GetThreads(RunDecompression);
+
+                            foreach (var thread in threads)
+                            {
+                                thread.Start(new RunDecompressionParameters
+                                {
+                                    InputFileStream = inputArchiveFileStream,
+                                    OutputFileStream = outputFileStream
+                                });
+                            }
+
+                            foreach (var thread in threads)
+                            {
+                                thread.Join();
+                            }
+                        }
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        throw new GZipTestPublicException($"{parameters.OutputFileInfo.FullName}: can not get access to file");
+                    }
+                }
             }
-
-            foreach (var thread in threads)
+            catch (UnauthorizedAccessException)
             {
-                thread.Join();
-            }*/
+                throw new GZipTestPublicException($"{parameters.InputFileInfo.FullName}: can not get access to file");
+            }
         }
 
         private void RunDecompression(object obj)
         {
-            /*try
+            try
             {
-                var parameters = (MultiThreadWorkerParameters) obj;
+                var parameters = (RunDecompressionParameters) obj;
                 var inputArchiveFileStream = parameters.InputFileStream;
                 var outputFileStream = parameters.OutputFileStream;
 
@@ -77,7 +98,7 @@ namespace GZipTest.Decompress
             catch (Exception ex)
             {
                 WritePrivateError(ex.Message + "\n" + ex.StackTrace);
-            }*/
+            }
         }
 
         private void WriteDecompressedBlockToStream(long blockPosition, DecompressedArchiveBlockData decompressedBlockData,
@@ -211,6 +232,13 @@ namespace GZipTest.Decompress
             public byte[] DecompressedData { get; set; }
 
             public int DecompressedDataLength { get; set; }
+        }
+
+        private class RunDecompressionParameters
+        {
+            public FileStream InputFileStream { get; set; }
+
+            public FileStream OutputFileStream { get; set; }
         }
     }
 }
