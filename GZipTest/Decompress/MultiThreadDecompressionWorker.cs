@@ -84,7 +84,7 @@ namespace GZipTest.Decompress
         {
             try
             {
-                var parameters = (RunDecompressionParameters) obj;
+                var parameters = (RunDecompressionParameters)obj;
                 var inputArchiveFileStream = parameters.InputFileStream;
                 var outputFileStream = parameters.OutputFileStream;
 
@@ -95,12 +95,12 @@ namespace GZipTest.Decompress
                         return;
                     }
 
-                    if (NeedtoFillBuffer())
+                    if (NeedToFillBuffer())
                     {
                         FillBuffer(inputArchiveFileStream);
                     }
 
-                    var archiveBlock = GetCompressedBlock();
+                    var archiveBlock = GetCompressedBlockFromBuffer();
 
                     if (archiveBlock == null && _readingCompleted)
                     {
@@ -131,6 +131,11 @@ namespace GZipTest.Decompress
             {
                 WritePrivateError(ex.Message + "\n" + ex.StackTrace);
             }
+        }
+
+        private bool NeedToFillBuffer()
+        {
+            return _buffer.Count <= _bufferSizeRasingFilling && !_readingCompleted;
         }
 
         private void FillBuffer(FileStream inputArchiveFileStream)
@@ -168,7 +173,13 @@ namespace GZipTest.Decompress
                                 $"Incorrect archive format. Block with compressed data block should be {compressedDataBlockSize.Value} bytes size, but was {numberOfBytesRead} bytes.");
                         }
 
-                        WriteBlockToBuffer(compressedData, compressedDataBlockNumber);
+                        var block = new ArchiveBlockData
+                        {
+                            CompressedData = compressedData,
+                            BlockNumber = compressedDataBlockNumber.Value
+                        };
+
+                        WriteBlockToBuffer(block);
                     }
                 }
                 finally
@@ -178,43 +189,45 @@ namespace GZipTest.Decompress
             }
         }
 
-        private void WriteBlockToBuffer(byte[] compressedData, int? compressedDataBlockNumber)
+        private int? GetIntegerFromInputStream(FileStream inputArchiveFileStream)
+        {
+            var followingIntegerValueBytes = new byte[sizeof(int)];
+            var numberOfBytesRead = inputArchiveFileStream.Read(followingIntegerValueBytes, 0, sizeof(int));
+
+            if (numberOfBytesRead == 0)
+            {
+                return null;
+            }
+
+            if (numberOfBytesRead != sizeof(int))
+            {
+                throw new FormatException(
+                    $"Incorrect archive format. Block with integer value information should be {sizeof(int)} bytes size, but was {numberOfBytesRead} bytes.");
+            }
+
+            return BitConverter.ToInt32(followingIntegerValueBytes, 0);
+        }
+
+        private void WriteBlockToBuffer(ArchiveBlockData archivedBlockData)
         {
             lock (_bufferReadWriteLocker)
             {
-                _buffer.Add(new ArchiveBlockData
+                _buffer.Add(archivedBlockData);
+            }
+        }
+
+        private ArchiveBlockData GetCompressedBlockFromBuffer()
+        {
+            lock (_bufferReadWriteLocker)
+            {
+                var block = _buffer.FirstOrDefault();
+                if (block != null)
                 {
-                    CompressedData = compressedData,
-                    BlockNumber = compressedDataBlockNumber.Value
-                });
+                    _buffer.Remove(block);
+                }
+
+                return block;
             }
-        }
-
-        private bool NeedtoFillBuffer()
-        {
-            return _buffer.Count <= _bufferSizeRasingFilling && !_readingCompleted;
-        }
-
-        private void WriteDecompressedBlockToStream(long blockPosition, DecompressedArchiveBlockData decompressedBlockData,
-            FileStream outputFileStream)
-        {
-            lock (_writeLocker)
-            {
-                outputFileStream.Position = blockPosition;
-                outputFileStream.Write(decompressedBlockData.DecompressedData, 0, decompressedBlockData.DecompressedDataLength);
-            }
-        }
-
-        private long GetDecompressedBlockPosition(ArchiveBlockData archiveBlock, FileStream outputFileStream)
-        {
-            long blockPosition = FormatConstants.BlockSize * archiveBlock.BlockNumber;
-
-            if (blockPosition >= outputFileStream.Length)
-            {
-                throw new FormatException(
-                    $"Incorrect archive format. Block position {archiveBlock.BlockNumber} does not correspond to original file size = {outputFileStream.Length} bytes.");
-            }
-            return blockPosition;
         }
 
         private DecompressedArchiveBlockData DecompressBlock(ArchiveBlockData archiveBlock)
@@ -237,37 +250,26 @@ namespace GZipTest.Decompress
             };
         }
 
-        private ArchiveBlockData GetCompressedBlock()
+        private void WriteDecompressedBlockToStream(long blockPosition, DecompressedArchiveBlockData decompressedBlockData,
+            FileStream outputFileStream)
         {
-            lock (_bufferReadWriteLocker)
+            lock (_writeLocker)
             {
-                var block = _buffer.FirstOrDefault();
-                if (block != null)
-                {
-                    _buffer.Remove(block);
-                }
-
-                return block;
+                outputFileStream.Position = blockPosition;
+                outputFileStream.Write(decompressedBlockData.DecompressedData, 0, decompressedBlockData.DecompressedDataLength);
             }
         }
 
-        private int? GetIntegerFromInputStream(FileStream inputArchiveFileStream)
+        private long GetDecompressedBlockPosition(ArchiveBlockData archiveBlock, FileStream outputFileStream)
         {
-            var followingIntegerValueBytes = new byte[sizeof(int)];
-            var numberOfBytesRead = inputArchiveFileStream.Read(followingIntegerValueBytes, 0, sizeof(int));
+            long blockPosition = FormatConstants.BlockSize * archiveBlock.BlockNumber;
 
-            if (numberOfBytesRead == 0)
-            {
-                return null;
-            }
-            
-            if (numberOfBytesRead != sizeof(int))
+            if (blockPosition >= outputFileStream.Length)
             {
                 throw new FormatException(
-                    $"Incorrect archive format. Block with integer value information should be {sizeof(int)} bytes size, but was {numberOfBytesRead} bytes.");
+                    $"Incorrect archive format. Block position {archiveBlock.BlockNumber} does not correspond to original file size = {outputFileStream.Length} bytes.");
             }
-
-            return BitConverter.ToInt32(followingIntegerValueBytes, 0);
+            return blockPosition;
         }
 
         private void SetOutputFileSize(FileStream inputArchiveFileStream, FileStream outputFileStream)
