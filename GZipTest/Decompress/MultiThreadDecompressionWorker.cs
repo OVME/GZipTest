@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using System.Threading;
 using GZipTest.Common;
 using GZipTest.Common.MultiThreading;
 
@@ -8,17 +11,31 @@ namespace GZipTest.Decompress
 {
     public class MultiThreadDecompressionWorker : MultiThreadWorker
     {
+        private const int BufferBlocksPerThread = 10;
 
-        private readonly object _readLocker = new object();
+        private readonly object _bufferFillingLocker = new object();
+
+        private readonly object _bufferReadWriteLocker = new object();
 
         private readonly object _writeLocker = new object();
 
+        private readonly int _bufferMaximumSize;
+
+        private readonly int _bufferSizeRasingFilling;
+
+        private List<ArchiveBlockData> _buffer;
+
+        private bool _readingCompleted = false;
+
         public MultiThreadDecompressionWorker(int processorsCount) : base(processorsCount)
         {
+            _bufferMaximumSize = processorsCount * BufferBlocksPerThread;
+            _bufferSizeRasingFilling = _bufferMaximumSize / 2;
         }
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
+            InitializeBuffer();
             try
             {
                 using (var inputArchiveFileStream = parameters.InputFileInfo.OpenRead())
@@ -58,6 +75,11 @@ namespace GZipTest.Decompress
             }
         }
 
+        private void InitializeBuffer()
+        {
+            _buffer = new List<ArchiveBlockData>(_bufferMaximumSize);
+        }
+
         private void RunDecompression(object obj)
         {
             try
@@ -73,11 +95,21 @@ namespace GZipTest.Decompress
                         return;
                     }
 
-                    var archiveBlock = GetCompressedBlockFromStream(inputArchiveFileStream);
+                    if (NeedtoFillBuffer())
+                    {
+                        FillBuffer(inputArchiveFileStream);
+                    }
+
+                    var archiveBlock = GetCompressedBlock();
+
+                    if (archiveBlock == null && _readingCompleted)
+                    {
+                        break;
+                    }
 
                     if (archiveBlock == null)
                     {
-                        break;
+                        continue;
                     }
 
                     var blockPosition = GetDecompressedBlockPosition(archiveBlock, outputFileStream);
@@ -101,6 +133,68 @@ namespace GZipTest.Decompress
             }
         }
 
+        private void FillBuffer(FileStream inputArchiveFileStream)
+        {
+            if (Monitor.TryEnter(_bufferFillingLocker))
+            {
+                try
+                {
+                    while (_buffer.Count < _bufferMaximumSize + 1)
+                    {
+                        var compressedDataBlockNumber = GetIntegerFromInputStream(inputArchiveFileStream);
+
+                        if (compressedDataBlockNumber == null)
+                        {
+                            _readingCompleted = true;
+                            return;
+                        }
+
+                        var compressedDataBlockSize = GetIntegerFromInputStream(inputArchiveFileStream);
+
+                        if (compressedDataBlockSize == null)
+                        {
+                            throw new FormatException(
+                                $"Incorrect archive format. Block with information about following compressed data block length should be {sizeof(int)} bytes size, but was 0 bytes.");
+                        }
+
+                        var compressedData = new byte[compressedDataBlockSize.Value];
+
+                        var numberOfBytesRead = inputArchiveFileStream.Read(compressedData, 0,
+                            compressedDataBlockSize.Value);
+
+                        if (numberOfBytesRead != compressedDataBlockSize.Value)
+                        {
+                            throw new FormatException(
+                                $"Incorrect archive format. Block with compressed data block should be {compressedDataBlockSize.Value} bytes size, but was {numberOfBytesRead} bytes.");
+                        }
+
+                        WriteBlockToBuffer(compressedData, compressedDataBlockNumber);
+                    }
+                }
+                finally
+                {
+                    Monitor.Exit(_bufferFillingLocker);
+                }
+            }
+        }
+
+        private void WriteBlockToBuffer(byte[] compressedData, int? compressedDataBlockNumber)
+        {
+            lock (_bufferReadWriteLocker)
+            {
+                _buffer.Add(new ArchiveBlockData
+                {
+                    CompressedData = compressedData,
+                    BlockNumber = compressedDataBlockNumber.Value
+                });
+            }
+        }
+
+        private bool NeedtoFillBuffer()
+        {
+            return _buffer.Count <= _bufferSizeRasingFilling && !_readingCompleted;
+        }
+
         private void WriteDecompressedBlockToStream(long blockPosition, DecompressedArchiveBlockData decompressedBlockData,
             FileStream outputFileStream)
         {
@@ -113,7 +207,7 @@ namespace GZipTest.Decompress
 
         private long GetDecompressedBlockPosition(ArchiveBlockData archiveBlock, FileStream outputFileStream)
         {
-            long blockPosition = FormatConstants.BlockSize*archiveBlock.BlockNumber;
+            long blockPosition = FormatConstants.BlockSize * archiveBlock.BlockNumber;
 
             if (blockPosition >= outputFileStream.Length)
             {
@@ -143,40 +237,17 @@ namespace GZipTest.Decompress
             };
         }
 
-        private ArchiveBlockData GetCompressedBlockFromStream(FileStream inputArchiveFileStream)
+        private ArchiveBlockData GetCompressedBlock()
         {
-            lock (_readLocker)
+            lock (_bufferReadWriteLocker)
             {
-                var compressedDataBlockNumber = GetIntegerFromInputStream(inputArchiveFileStream);
-
-                if (compressedDataBlockNumber == null)
+                var block = _buffer.FirstOrDefault();
+                if (block != null)
                 {
-                    return null;
+                    _buffer.Remove(block);
                 }
 
-                var compressedDataBlockSize = GetIntegerFromInputStream(inputArchiveFileStream);
-
-                if (compressedDataBlockSize == null)
-                {
-                    throw new FormatException(
-                        $"Incorrect archive format. Block with information about following compressed data block length should be {sizeof(int)} bytes size, but was 0 bytes.");
-                }
-
-                var compressedData = new byte[compressedDataBlockSize.Value];
-
-                var numberOfBytesRead = inputArchiveFileStream.Read(compressedData, 0, compressedDataBlockSize.Value);
-
-                if (numberOfBytesRead != compressedDataBlockSize.Value)
-                {
-                    throw new FormatException(
-                        $"Incorrect archive format. Block with compressed data block should be {compressedDataBlockSize.Value} bytes size, but was {numberOfBytesRead} bytes.");
-                }
-
-                return new ArchiveBlockData
-                {
-                    CompressedData = compressedData,
-                    BlockNumber = compressedDataBlockNumber.Value
-                };
+                return block;
             }
         }
 
