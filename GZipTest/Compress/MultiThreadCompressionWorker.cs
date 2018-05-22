@@ -9,7 +9,7 @@ namespace GZipTest.Compress
 {
     public class MultiThreadCompressionWorker : MultiThreadWorker
     {
-        private readonly object _readLocker = new object();
+        private readonly object _blockNumberLocker = new object();
 
         private readonly object _writeLocker = new object();
 
@@ -122,12 +122,8 @@ namespace GZipTest.Compress
         private BlockInfo GetNextBlock(FileStream inputFileStream)
         {
             var blockData = new byte[FormatConstants.BlockSize];
-            int blockNumber;
 
-            lock (_readLocker)
-            {
-                blockNumber = GetNextBlockNumber();
-            }
+            var blockNumber = GetNextBlockNumber();
 
             if (blockNumber >= _blocksAmount)
             {
@@ -160,7 +156,10 @@ namespace GZipTest.Compress
 
         private int GetNextBlockNumber()
         {
-            return _blockNumber++;
+            lock (_blockNumberLocker)
+            {
+                return _blockNumber++;
+            }
         }
 
         private void WriteOriginalFileSize(FileInfo inputFileInfo, FileStream outputArchiveFileStream)
@@ -246,9 +245,10 @@ namespace GZipTest.Compress
                         outputFileStream.Write(compressedBlock.CompressedData, 0, compressedDataLength);
                     }
                 }
-                catch (IOException)
+                catch (IOException e)
                 {
                     WritePublicError($"{outputFileStream.Name}: write error. Possible there is not enough disk space");
+                    WritePublicError(e.Message + e.StackTrace);
                 }
             }
         }
