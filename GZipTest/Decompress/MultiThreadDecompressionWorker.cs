@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Threading;
 using GZipTest.Common;
 using GZipTest.Common.MultiThreading;
@@ -15,27 +13,20 @@ namespace GZipTest.Decompress
 
         private readonly object _bufferFillingLocker = new object();
 
-        private readonly object _bufferReadWriteLocker = new object();
-
         private readonly object _writeLocker = new object();
 
-        private readonly int _bufferMaximumSize;
-
-        private readonly int _bufferSizeRasingFilling;
-
-        private List<ArchiveBlockData> _buffer;
+        private readonly DecompressionBuffer<ArchiveBlock> _buffer;
 
         private bool _readingCompleted = false;
 
         public MultiThreadDecompressionWorker(int processorsCount) : base(processorsCount)
         {
-            _bufferMaximumSize = processorsCount * BufferBlocksPerThread;
-            _bufferSizeRasingFilling = _bufferMaximumSize / 2;
+            var bufferMaximumSize = processorsCount * BufferBlocksPerThread;
+            _buffer = new DecompressionBuffer<ArchiveBlock>(bufferMaximumSize);
         }
 
         protected override void WorkInternal(MultiThreadWorkerParameters parameters)
         {
-            InitializeBuffer();
             try
             {
                 using (var inputArchiveFileStream = parameters.InputFileInfo.OpenRead())
@@ -75,11 +66,6 @@ namespace GZipTest.Decompress
             }
         }
 
-        private void InitializeBuffer()
-        {
-            _buffer = new List<ArchiveBlockData>(_bufferMaximumSize);
-        }
-
         private void RunDecompression(object obj)
         {
             try
@@ -95,12 +81,12 @@ namespace GZipTest.Decompress
                         return;
                     }
 
-                    if (NeedToFillBuffer())
+                    if (_buffer.NeedFilling() && !_readingCompleted)
                     {
                         FillBuffer(inputArchiveFileStream);
                     }
 
-                    var archiveBlock = GetCompressedBlockFromBuffer();
+                    var archiveBlock = _buffer.Pull();
 
                     if (archiveBlock == null && _readingCompleted)
                     {
@@ -133,18 +119,13 @@ namespace GZipTest.Decompress
             }
         }
 
-        private bool NeedToFillBuffer()
-        {
-            return _buffer.Count <= _bufferSizeRasingFilling && !_readingCompleted;
-        }
-
         private void FillBuffer(FileStream inputArchiveFileStream)
         {
             if (Monitor.TryEnter(_bufferFillingLocker))
             {
                 try
                 {
-                    while (_buffer.Count < _bufferMaximumSize + 1)
+                    while (!_buffer.IsFull())
                     {
                         var compressedDataBlockNumber = GetIntegerFromInputStream(inputArchiveFileStream);
 
@@ -173,13 +154,13 @@ namespace GZipTest.Decompress
                                 $"Incorrect archive format. Block with compressed data block should be {compressedDataBlockSize.Value} bytes size, but was {numberOfBytesRead} bytes.");
                         }
 
-                        var block = new ArchiveBlockData
+                        var block = new ArchiveBlock
                         {
                             CompressedData = compressedData,
                             BlockNumber = compressedDataBlockNumber.Value
                         };
 
-                        WriteBlockToBuffer(block);
+                        _buffer.Push(block);
                     }
                 }
                 finally
@@ -208,29 +189,7 @@ namespace GZipTest.Decompress
             return BitConverter.ToInt32(followingIntegerValueBytes, 0);
         }
 
-        private void WriteBlockToBuffer(ArchiveBlockData archivedBlockData)
-        {
-            lock (_bufferReadWriteLocker)
-            {
-                _buffer.Add(archivedBlockData);
-            }
-        }
-
-        private ArchiveBlockData GetCompressedBlockFromBuffer()
-        {
-            lock (_bufferReadWriteLocker)
-            {
-                var block = _buffer.FirstOrDefault();
-                if (block != null)
-                {
-                    _buffer.Remove(block);
-                }
-
-                return block;
-            }
-        }
-
-        private DecompressedArchiveBlockData DecompressBlock(ArchiveBlockData archiveBlock)
+        private DecompressedArchiveBlockData DecompressBlock(ArchiveBlock archiveBlock)
         {
             var decompressedData = new byte[FormatConstants.BlockSize];
             int numberOfBytesDecompressed;
@@ -260,7 +219,7 @@ namespace GZipTest.Decompress
             }
         }
 
-        private long GetDecompressedBlockPosition(ArchiveBlockData archiveBlock, FileStream outputFileStream)
+        private long GetDecompressedBlockPosition(ArchiveBlock archiveBlock, FileStream outputFileStream)
         {
             long blockPosition = FormatConstants.BlockSize * archiveBlock.BlockNumber;
 
@@ -291,13 +250,6 @@ namespace GZipTest.Decompress
             {
                 throw new GZipTestPublicException($"{outputFileStream.Name}: can not create file. Possible not enough disk space.");
             }
-        }
-
-        private class ArchiveBlockData
-        {
-            public byte[] CompressedData { get; set; }
-
-            public int BlockNumber { get; set; }
         }
 
         private class DecompressedArchiveBlockData

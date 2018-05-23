@@ -23,7 +23,7 @@ namespace GZipTest.Compress
 
         private int _writtenBlocksAmount = 0;
 
-        private List<CompressedBlock> _buffer;
+        private List<ArchiveBlock> _buffer;
 
         public MultiThreadCompressionWorker(int processorsCount) : base(processorsCount)
         {
@@ -65,7 +65,7 @@ namespace GZipTest.Compress
 
         private void InitializeBuffer()
         {
-            _buffer = new List<CompressedBlock>(_blocksLimitInBuffer);
+            _buffer = new List<ArchiveBlock>(_blocksLimitInBuffer);
         }
 
         private void SetBlocksAmount(FileInfo inputFileInfo)
@@ -196,13 +196,13 @@ namespace GZipTest.Compress
 
         private void WriteCompressedBlock(FileStream outputFileStream, int blockNumber, byte[] compressedData)
         {
-            var compressedBlock = new CompressedBlock
+            var compressedBlock = new ArchiveBlock
             {
                 BlockNumber = blockNumber,
                 CompressedData = compressedData
             };
 
-            List<CompressedBlock> buffer = null;
+            List<ArchiveBlock> buffer = null;
 
             lock (_writeToBufferLocker)
             {
@@ -231,7 +231,7 @@ namespace GZipTest.Compress
             return _writtenBlocksAmount == _blocksAmount;
         }
 
-        private void WriteBufferToOutputFileStream(List<CompressedBlock> buffer, FileStream outputFileStream)
+        private void WriteBufferToOutputFileStream(List<ArchiveBlock> buffer, FileStream outputFileStream)
         {
             lock (_writeLocker)
             {
@@ -263,13 +263,6 @@ namespace GZipTest.Compress
             public byte[] Data { get; set; }
 
             public int DataLength { get; set; }
-
-            public int BlockNumber { get; set; }
-        }
-
-        private class CompressedBlock
-        {
-            public byte[] CompressedData { get; set; }
 
             public int BlockNumber { get; set; }
         }

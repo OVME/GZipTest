@@ -51,6 +51,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\ArchiveBlock.cs" />
     <Compile Include="Common\Command.cs" />
     <Compile Include="Common\CommandProcessor.cs" />
     <Compile Include="Common\ICommandProcessor.cs" />
@@ -63,6 +64,7 @@
     <Compile Include="Common\OperationType.cs" />
     <Compile Include="Composition\ContainerConfig.cs" />
     <Compile Include="Compress\MultiThreadCompressionWorker.cs" />
+    <Compile Include="Decompress\DecompressionBuffer.cs" />
     <Compile Include="Decompress\MultiThreadDecompressionWorker.cs" />
     <Compile Include="Common\FormatConstants.cs" />
     <Compile Include="GZipTestApplication.cs" />
